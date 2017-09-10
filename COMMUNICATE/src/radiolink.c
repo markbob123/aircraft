@@ -1,20 +1,17 @@
-#include <string.h>
-#include "config.h"
 #include "radiolink.h"
-#include "config_param.h"
 #include "led.h"
-#include "ledseq.h"
-#include "uart_syslink.h"
-
+#include "24l01.h"
+#include "oled.h"
+#include "config_param.h"
 /*FreeRtos includes*/
 #include "FreeRTOS.h"
 #include "task.h"
-#include "semphr.h"
 #include "queue.h"
+#include "semphr.h"
 
 /********************************************************************************	 
  * 本程序只供学习使用，未经作者许可，不得用于其它任何用途
- * ALIENTEK MiniFly
+ * ALIENTEK MiniFly_Remotor
  * 无线通信驱动代码	
  * 正点原子@ALIENTEK
  * 技术论坛:www.openedv.com
@@ -25,173 +22,173 @@
  * All rights reserved
 ********************************************************************************/
 
-#define RADIOLINK_TX_QUEUE_SIZE  30 /*接收队列个数*/
+/*发送和接收队列信息个数*/
+#define  RADIOLINK_TX_QUEUE_SIZE  10
+#define  RADIOLINK_RX_QUEUE_SIZE  10
 
-static enum
-{
-	waitForStartByte1,
-	waitForStartByte2,
-	waitForMsgID,
-	waitForDataLength,
-	waitForData,
-	waitForChksum1,
-}rxState;
-static bool isInit;
-static atkp_t txPacket;
-static atkp_t rxPacket;
+xTaskHandle radiolinkTaskHandle;
 static xQueueHandle  txQueue;
+static xQueueHandle  rxQueue;
+static xSemaphoreHandle nrfIT;
+static bool isInit;
+static bool connectStatus;
+static atkp_t tx_p;
+static u8 statusCount;
+static u16 failRxCount;
+static u16 failReceiveNum;
+static TickType_t failRxcountTime;
 
-static void atkpPacketDispatch(atkp_t *rxPacket);
-
-//radiolink接收ATKPPacket任务
-void radiolinkTask(void *param)
+/*nrf外部中断回调函数*/
+static void nrf_interruptCallback(void)
 {
-	rxState = waitForStartByte1;
-	
-	u8 c;
-	u8 dataIndex = 0;
-	u8 cksum = 0;
-
-	while(1)
-	{
-		if (uartslkGetDataWithTimout(&c))
-		{
-			switch(rxState)
-			{
-				case waitForStartByte1:
-					rxState = (c == DOWN_BYTE1) ? waitForStartByte2 : waitForStartByte1;
-					cksum = c;
-					break;
-				case waitForStartByte2:
-					rxState = (c == DOWN_BYTE2) ? waitForMsgID : waitForStartByte1;
-					cksum += c;
-					break;
-				case waitForMsgID:
-					rxPacket.msgID = c;
-					rxState = waitForDataLength;
-					cksum += c;
-					break;
-				case waitForDataLength:
-					if (c <= ATKP_MAX_DATA_SIZE)
-					{
-						rxPacket.dataLen = c;
-						dataIndex = 0;
-						rxState = (c > 0) ? waitForData : waitForChksum1;	/*c=0,数据长度为0，校验1*/
-						cksum += c;
-					} else 
-					{
-						rxState = waitForStartByte1;
-					}
-					break;
-				case waitForData:
-					rxPacket.data[dataIndex] = c;
-					dataIndex++;
-					cksum += c;
-					if (dataIndex == rxPacket.dataLen)
-					{
-						rxState = waitForChksum1;
-					}
-					break;
-				case waitForChksum1:
-					if (cksum == c)	/*所有校验正确*/
-					{
-						atkpPacketDispatch(&rxPacket);
-					} 
-					else	/*校验错误*/
-					{
-						rxState = waitForStartByte1;	
-						IF_DEBUG_ASSERT(1);
-					}
-					rxState = waitForStartByte1;
-					break;
-				default:
-					ASSERT(0);
-					break;
-			}
-		}
-		else	/*超时处理*/
-		{
-			rxState = waitForStartByte1;
-		}
-	}
+	portBASE_TYPE  xHigherPriorityTaskWoken = pdFALSE;
+	xSemaphoreGiveFromISR(nrfIT, &xHigherPriorityTaskWoken);
 }
 
+/*无线配置初始化（地址、通道、速率）*/
+static void radioInit(void)
+{
+	uint64_t addr = (uint64_t)configParam.radio.addressHigh<<32 | configParam.radio.addressLow;
+	if(nrf_check() == SUCCESS)
+	{
+		nrfInit(PTX_MODE);
+		nrf_setIterruptCallback(nrf_interruptCallback);
+	}
+	else
+	{
+		oledInit();
+		oled_showString(0,0,(u8*)"NRF24L01 CHECK FAIL !",6,12);
+		oled_refreshGram();
+		while(1);
+	}
+	nrf_setAddress(addr);
+	nrf_setChannel(configParam.radio.channel);
+	nrf_setDataRate(configParam.radio.dataRate);
+}
 
+/*无线连接初始化*/
 void radiolinkInit(void)
 {
 	if (isInit) return;
-	uartslkInit();
+	radioInit();
 	
-	/*创建发送队列，CRTP_TX_QUEUE_SIZE个消息*/
 	txQueue = xQueueCreate(RADIOLINK_TX_QUEUE_SIZE, sizeof(atkp_t));
 	ASSERT(txQueue);
+	rxQueue = xQueueCreate(RADIOLINK_RX_QUEUE_SIZE, sizeof(atkp_t));
+	ASSERT(rxQueue);
 	
+	nrfIT = xSemaphoreCreateBinary();
+	
+	tx_p.msgID = DOWN_RADIO;
+	tx_p.dataLen = 1;
+	tx_p.data[0] = D_RADIO_HEARTBEAT;
+	connectStatus = false;
 	isInit = true;
 }
 
-/*打包ATKPPacket数据通过串口DMA发送*/
-static void uartSendPacket(atkp_t *p)
-{
-	int dataSize;
-	u8 cksum = 0;
-	u8 sendBuffer[36];
-	
-	ASSERT(p->dataLen <= ATKP_MAX_DATA_SIZE);
-
-	sendBuffer[0] = UP_BYTE1;
-	sendBuffer[1] = UP_BYTE2;
-	sendBuffer[2] = p->msgID;
-	sendBuffer[3] = p->dataLen;
-	
-	memcpy(&sendBuffer[4], p->data, p->dataLen);
-	dataSize = p->dataLen + 5;//加上cksum
-	/*计算校验和*/
-	for (int i=0; i<dataSize-1; i++)
-	{
-		cksum += sendBuffer[i];
-	}
-	sendBuffer[dataSize-1] = cksum;
-	
-	/*串口DMA发送*/
-	uartslkSendDataDmaBlocking(dataSize, sendBuffer);
-}
-
-/*radiolink接收到ATKPPacket预处理*/
-static void atkpPacketDispatch(atkp_t *rxPacket)
-{
-	atkpReceivePacketBlocking(rxPacket);
-	
-	if( rxPacket->msgID == DOWN_POWER)
-	{;}/*do noting*/
-	else
-	{
-		ledseqRun(DATA_RX_LED, seq_linkup);
-		/*接收到一个遥控无线数据包则发送一个包*/
-		if(xQueueReceive(txQueue, &txPacket, 0) == pdTRUE)
-		{
-			ASSERT(txPacket.dataLen <= ATKP_MAX_DATA_SIZE);
-			ledseqRun(DATA_TX_LED, seq_linkup);
-			uartSendPacket(&txPacket);
-		}
-	}
-}
-
+/*无线发送atkpPacket*/
 bool radiolinkSendPacket(const atkp_t *p)
 {
 	ASSERT(p);
 	ASSERT(p->dataLen <= ATKP_MAX_DATA_SIZE);
 	return xQueueSend(txQueue, p, 0);
 }
-
 bool radiolinkSendPacketBlocking(const atkp_t *p)
 {
 	ASSERT(p);
 	ASSERT(p->dataLen <= ATKP_MAX_DATA_SIZE);
-	return xQueueSend(txQueue, p, portMAX_DELAY);	
+	return xQueueSend(txQueue, p, 100);//portMAX_DELAY
 }
 
-//获取剩余可用txQueue个数
-int radiolinkGetFreeTxQueuePackets(void)	
+/*无线接收atkpPacket*/
+bool radiolinkReceivePacket(atkp_t *p)
 {
-	return (RADIOLINK_TX_QUEUE_SIZE - uxQueueMessagesWaiting(txQueue));
+	ASSERT(p);
+	return xQueueReceive(rxQueue, p, 0);
 }
+bool radiolinkReceivePacketBlocking(atkp_t *p)
+{
+	ASSERT(p);
+	return xQueueReceive(rxQueue, p, portMAX_DELAY);
+}
+
+/*无线连接任务*/
+void radiolinkTask(void* param)
+{
+	u8 rx_len;
+	atkp_t rx_p;
+	while(1)
+	{
+		nrf_txPacket((u8*)&tx_p, tx_p.dataLen+2);
+		xSemaphoreTake(nrfIT, 1000);
+		nrfEvent_e status = nrf_checkEventandRxPacket((u8*)&rx_p, &rx_len);
+		if(status == RX_DR)//发送成功
+		{	
+			LED_BLUE = 0;
+			LED_RED  = 1;
+			statusCount = 0;
+			connectStatus = true;
+			if(rx_p.dataLen <= ATKP_MAX_DATA_SIZE)
+			{
+				xQueueSend(rxQueue, &rx_p, portMAX_DELAY);
+			}
+			if(xQueueReceive(txQueue, &tx_p, 0) == pdFALSE)
+			{
+				tx_p.msgID = DOWN_RADIO;
+				tx_p.dataLen = 1;
+				tx_p.data[0] = D_RADIO_HEARTBEAT;
+			}
+		}
+		else if(status == MAX_RT)//发送失败
+		{
+			LED_BLUE = 1;
+			LED_RED  = 0;
+			failRxCount++;
+			if(++statusCount > 10)//连续10次无应答则通讯失败
+			{
+				statusCount = 0;
+				connectStatus = false;
+			}
+		}
+		
+		/*1000ms统计一次收发失败次数*/
+		if(connectStatus==true && xTaskGetTickCount()>=failRxcountTime+1000)
+		{
+			failRxcountTime = xTaskGetTickCount();
+			failReceiveNum = failRxCount;
+			failRxCount = 0;
+		}
+		
+	}
+}
+
+/*获取丢包个数*/
+u16 radioinkFailRxcount(void)
+{
+	return failReceiveNum;
+}
+
+/*获取无线连接状态*/
+bool radioinkConnectStatus(void)
+{
+	return connectStatus;
+}
+
+/*使能radiolink*/
+void radiolinkEnable(FunctionalState state)
+{
+	if(state == ENABLE)
+		vTaskResume(radiolinkTaskHandle);
+	else
+		vTaskSuspend(radiolinkTaskHandle);
+}
+
+
+
+
+
+
+
+
+
+

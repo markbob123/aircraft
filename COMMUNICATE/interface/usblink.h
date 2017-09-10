@@ -1,11 +1,12 @@
-#ifndef __USBLINK_H
-#define __USBLINK_H
+#ifndef __USB_LINK_H
+#define __USB_LINK_H
+#include <stdint.h>
 #include <stdbool.h>
 #include "atkp.h"
 
 /********************************************************************************	 
  * 本程序只供学习使用，未经作者许可，不得用于其它任何用途
- * ALIENTEK MiniFly
+ * ALIENTEK MiniFly_Remotor
  * USB通信驱动代码	
  * 正点原子@ALIENTEK
  * 技术论坛:www.openedv.com
@@ -16,11 +17,14 @@
  * All rights reserved
 ********************************************************************************/
 
+
 void usblinkInit(void);
 bool usblinkSendPacket(const atkp_t *p);
-int usblinkGetFreeTxQueuePackets(void);
+bool usblinkSendPacketBlocking(const atkp_t *p);
+bool usblinkReceivePacket(atkp_t *p);
+bool usblinkReceivePacketBlocking(atkp_t *p);
+void usblinkTxTask(void* param);
 void usblinkRxTask(void *param);
-void usblinkTxTask(void *param);
 
 
 #endif /*usblink.h*/

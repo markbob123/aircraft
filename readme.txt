@@ -1,57 +1,32 @@
 
 最新资料下载地址:
 	http://www.openedv.com/thread-105197-1-1.html
-
-MiniFly外形:
-
-         HEAD
-	  M4  ↑  M1
-	   \     /
-		\   /
-		 \ /
-		 / \
-		/   \
-	   /     \
-	  M3     M2
 	
-硬件资源:
-	1,MCU:STM32F411CEU6 (FLAH:512K, RAM:128K, 系统运行时钟频率:96MHz)
-	2,9轴MPU9250连接在IIC1上(IMU_SCL:PB8, IMU_SDA:PB9, 通信方式:模拟IIC) 
-	3,气压计BMP280连接在MPU9250的辅助IIC上(AUX_DA,AUX_CL)
-	4,无线通信NFR51822连接在UART2上(NRF_RX:PA2, NRF_TX:PA3, NRF_FLOW_CTRL:PA0) 
-	5,MOTOR1连接在TIM4_CH2上(PB7)
-	6,MOTOR2连接在TIM4_CH1上(PB6)
-	7,MOTOR3连接在TIM2_CH3上(PB10)
-	8,MOTOR4连接在TIM2_CH1上(PA5)
-	9,LED_BLUE_L连接在PB12上	(MORTOR3对应的蓝色LED, 高电平有效)
-	10,LED_GREEN_L连接在PA6上	(MORTOR4对应的绿色LED, 低电平有效)
-	11,LED_RED_L连接在PA7上		(MORTOR4对应的红色LED, 低电平有效)
-	12,LED_GREEN_R连接在PC13上	(MORTOR1对应的绿色LED, 低电平有效)
-	13,LED_RED_R连接在PC14上	(MORTOR1对应的红色LED, 低电平有效)
-	14,扩展IIC接口(SDA:PB4, SCL:PB5) 
-	15,扩展SPI2接口(SCK:PB13, MISO:PB14, MOSI:PB15)  
-	16,扩展UART1接口(RX1:PB3, TX1:PA15, 外挂摄像头模块需用此接口)  
-	17,扩展GPIO(CS0:PC15, CS1:PB0, CS2:PB1, CS3:PA8). 	
-	18,USB_SLAVE接口(USB_ID:PA10, USB_DM:PA11, USB_DP:PA12)
+硬件资源：
+	1,MCU:STM32F103C8T6 (FLAH:64K, RAM:20K, 系统运行时钟频率:72MHz) 
+	2,无线通信NRF24L01+(CE:PA3, CSN:PA4, SCK:PA5, MISO:PA5, MOSI:PA6, IRQ:PC13) 
+	3,油门摇杆（ADC_YAW:PB0, ADC_THRUST: PB1）
+	4,方向摇杆（ADC_ROLL:PA1, ADC_PITCH: PA2）
+	5,OLED(MOSI:PB15, RST:PB14, CLK:PB13, DC:PB12)
+	6,按键(KEY_J1：PB10, KEY_J2：PA8, KEY_L:PB11, KEY_R:PC15)
+	7,通信指示灯(RED_LED0:PB7, BLUE_LED1:PB3)
+	8,蜂鸣器（PC14）
 
-实验现象:
-	MiniFly开机后，MOTOR1~4电机以20%的占空比依次转动50ms,然后关闭电机; 
+实验现象：
+	遥控器开机后显示主界面，蜂鸣器“滴”一声后四轴可飞行。
 	
-	灯语:
-		LED_BLUE_L:充电指示灯，充电时1S周期闪烁,停止充电后常亮;
-		LED_GREEN_L:无线通信数据接收指示灯，接收一个包闪一次;
-		LED_RED_L:无线通信数据发送指示灯，发送一个包闪一次;
-		LED_GREEN_R:2S周期慢闪指示传感器未校准，校准完成后0.5S周期快闪;
-		LED_RED_R:常亮表示电池处于低电量状态，请停止飞行，然后给电池充电;
-		LED_RED_L和LED_RED_R同时常量，表示MiniFly进入错误状态; 
+	灯语：
+	    RED_LED0：与四轴通信失败
+	    BLUE_LED1：与四轴通信成功
 
 注意事项:
 	代码下载和调试前，请将下载器开关拨到STM32档。
-	Bootloader起始地址(BOOTLOADER_ADDR) 0x08000000;
-	固件起始地址(FIRMWARE_START_ADDR) 	0x08008000;
+	bootloader起始地址（BOOTLOADER_START_ADDR） : 0x8000000
+	固件起始地址（FIRMWARE_START_ADDR） : 0x8002400
 
 固件更新记录:
-	Firmware V1.0 Release(硬件版本:V1.32, DATE:2017-06-30)
+	Firmware V1.0 Release(硬件版本:V1.6, DATE:2017-06-30)
+		
 	
 
 
@@ -64,24 +39,27 @@ MiniFly外形:
 					http://shop62057469.taobao.com
 					公司网站：www.alientek.com
 					技术论坛：www.openedv.com
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
-					
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,12 +1,12 @@
-#ifndef REMOTER_CTRL_H
-#define REMOTER_CTRL_H
+#ifndef __COMMANDER_H
+#define __COMMANDER_H
+#include <stdbool.h>
 #include "atkp.h"
-#include "sys.h"
-
+#include "joystick.h"
 /********************************************************************************	 
  * 本程序只供学习使用，未经作者许可，不得用于其它任何用途
- * ALIENTEK MiniFly
- * 手机wifi控制驱动代码	
+ * ALIENTEK MiniFly_Remotor
+ * 飞控指令驱动代码	
  * 正点原子@ALIENTEK
  * 技术论坛:www.openedv.com
  * 创建日期:2017/5/2
@@ -19,8 +19,8 @@
 /*遥控数据类别*/
 typedef enum 
 {
-	REMOTER_CMD,
-	REMOTER_DATA,
+	REMOTOR_CMD,
+	REMOTOR_DATA,
 }remoterType_e;
 
 /*下行命令*/
@@ -56,10 +56,10 @@ typedef __packed struct
 	bool isLowpower;
 } MiniFlyMsg_t;
 
+void commanderTask(void* param);
+joystickFlyf_t getFlyControlData(void);
+float limit(float value,float min, float max);
+void sendRmotorCmd(u8 cmd, u8 data);
+void sendRmotorData(u8 *data, u8 len);
 
-void remoterCtrlProcess(atkp_t* pk);
-void sendMsgACK(void);
-
-
-#endif /* WIFI_CONTROL_H */
-
+#endif /*__COMMANDER_H*/

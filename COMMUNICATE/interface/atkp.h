@@ -1,11 +1,11 @@
 #ifndef __ATKP_H
 #define __ATKP_H
-#include <stdint.h>
+#include "sys.h"
 #include <stdbool.h>
 /********************************************************************************	 
  * 本程序只供学习使用，未经作者许可，不得用于其它任何用途
- * ALIENTEK MiniFly
- * 飞控通讯协议格式代码
+ * ALIENTEK MiniFly_Remotor
+ * 飞控通讯协议格式代码	
  * 正点原子@ALIENTEK
  * 技术论坛:www.openedv.com
  * 创建日期:2017/5/2
@@ -13,7 +13,6 @@
  * 版权所有，盗版必究。
  * Copyright(C) 广州市星翼电子科技有限公司 2014-2024
  * All rights reserved
- * 说明：本格式部分基于匿名上位机通讯协议编写
 ********************************************************************************/
 
 /*上行帧头*/
@@ -29,9 +28,9 @@
 /*通讯数据结构*/
 typedef struct
 {
-	uint8_t msgID;
-	uint8_t dataLen;
-	uint8_t data[ATKP_MAX_DATA_SIZE];
+	u8 msgID;
+	u8 dataLen;
+	u8 data[ATKP_MAX_DATA_SIZE];
 }atkp_t;
 
 /*上行指令ID*/
@@ -57,7 +56,7 @@ typedef enum
 	UP_MSG			= 0xEE,
 	UP_CHECK		= 0xEF,
 	
-	UP_REMOTER		= 0x50,
+	UP_REMOTOR		= 0x50,
 	UP_PRINTF		= 0x51,
 }upmsgID_e;
 
@@ -89,14 +88,14 @@ typedef enum
 	DOWN_PID6		= 0x15,
 	DOWN_RADIO		= 0x40,
 	
-	DOWN_REMOTER	= 0x50,
+	DOWN_REMOTOR	= 0x50,
 }downmsgID_e;
 
 
-void atkpTxTask(void *param);
-void atkpRxAnlTask(void *param);
-void atkpInit(void);
-bool atkpReceivePacketBlocking(atkp_t *p);
+void radiolinkDataProcessTask(void *param);
+void usblinkDataProcessTask(void *param);
+bool getRecvRadioAddr(uint64_t* get);
+void setFlightModeCommander(u8 flightMode);
 
 #endif /*ATKP_H*/
 

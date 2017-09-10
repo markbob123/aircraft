@@ -1,7 +1,10 @@
 #ifndef __CONFIG_PARAM_H
 #define __CONFIG_PARAM_H
-#include "sys.h"
 #include <stdbool.h>
+#include "sys.h"
+#include "24l01.h"
+#include "remoter_ctrl.h"
+#include "joystick.h"
 
 /********************************************************************************	 
  * 本程序只供学习使用，未经作者许可，不得用于其它任何用途
@@ -15,47 +18,100 @@
  * Copyright(C) 广州市星翼电子科技有限公司 2014-2024
  * All rights reserved
 ********************************************************************************/
-												
-typedef struct 
-{
-	float kp;
-	float ki;
-	float kd;
-} pidInit_t;
 
-typedef struct
-{
-	pidInit_t roll;
-	pidInit_t pitch;	
-	pidInit_t yaw;	
-} pidParam_t;
+#define BOOTLOADER_SIZE		(9*1024)		/*9K bootloader*/
+#define CONFIG_PARAM_SIZE	(63*1024 + 768)	/*最后256字节保存参数*/
 
-typedef struct
-{
-	pidInit_t vx;
-	pidInit_t vy;
-	pidInit_t vz;	
-} pidParamPos_t;
+#define CONFIG_PARAM_ADDR 	(FLASH_BASE + CONFIG_PARAM_SIZE)/*配置参数保存地址*/	
+#define FIRMWARE_START_ADDR (FLASH_BASE + BOOTLOADER_SIZE)
 
-typedef struct	
+/* 默认配置参数 */
+#define  VERSION	10		/*表示版本为V1.0*/
+#define  DISPLAY_LANGUAGE	SIMPLE_CHINESE
+
+#define  RADIO_CHANNEL 		2
+#define  RADIO_DATARATE 	DATA_RATE_250K
+#define  RADIO_ADDRESS 		0x123456789AULL
+
+#define  FLIGHT_CTRL_MODE	ALTHOLD_MODE
+#define  FLIGHT_MODE		HEAD_LESS
+#define  FLIGHT_SPEED		LOW_SPEED
+#define  FLIP_SET			FLIP_DISABLE
+
+
+enum ctrlMode
 {
-	u8 version;				/*软件版本号*/
-	pidParam_t pidAngle;	/*角度PID*/	
-	pidParam_t pidRate;		/*角速度PID*/	
-	pidParamPos_t pidPos;	/*位置PID*/
-	u16 thrustBase;			/*油门基础值*/
-	u8 cksum;				/*校验*/
+	ALTHOLD_MODE,
+	MANUAL_MODE,
+};
+
+enum flightMode
+{
+	HEAD_LESS,
+	X_MODE,
+};
+
+enum flightSpeed
+{
+	LOW_SPEED,
+	MID_SPEED,
+	HIGH_SPEED,
+};
+
+enum flipEnable
+{
+	FLIP_ENABLE,
+	FLIP_DISABLE,
+};
+
+enum language
+{
+	SIMPLE_CHINESE,
+	ENGLISH,
+	COMPLEX_CHINESE,
+};
+
+/*飞行配置结构*/
+typedef struct{
+	enum ctrlMode ctrl;
+	enum flightMode mode;
+	enum flightSpeed speed;
+	enum flipEnable flip;
+}flightConfig_t;
+
+/*无线配置结构*/
+typedef struct{
+	u8 channel;		
+	enum nrfRate dataRate;
+	u32 addressHigh;/*通信地址高4字节*/
+	u32 addressLow;	/*通信地址低4字节*/
+}radioConfig_t;
+
+/*飞行微调结构*/
+typedef __packed struct{
+	float pitch;
+	float roll;
+}trim_t;
+
+/*保存参数结构*/
+typedef struct{
+	u8 version;		/*软件版本号*/
+	enum language language;	/*显示语言*/
+	radioConfig_t radio;	/*无线配置参数*/
+	flightConfig_t flight;	/*飞行配置参数*/
+	joystickParam_t jsParam;/*摇杆校准参数*/
+	trim_t trim;			/*姿态微调参数*/
+	u8 cksum;			/*校验*/
 } configParam_t;
 
 
 extern configParam_t configParam;
 
-void configParamInit(void);	/*参数配置初始化*/
-void configParamTask(void* param);	/*参数配置任务*/
-bool configParamTest(void);
 
-void configParamGiveSemaphore(void);
-void resetConfigParamPID(void);
+void configParamInit(void);
+void configParamTask(void* param);
+void writeConfigParamToFlash(void);
+void configParamReset(void);
 
-#endif /*__CONFIG_PARAM_H */
+#endif
 

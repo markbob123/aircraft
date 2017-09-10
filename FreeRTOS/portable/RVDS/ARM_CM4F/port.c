@@ -510,8 +510,8 @@ __asm void xPortPendSVHandler( void )
 			pop { pc }
 			nop
 		#endif
-
 	#endif
+
 	bx r14
 }
 /*-----------------------------------------------------------*/
